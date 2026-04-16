@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "mcgpu",
+  "version-string": "1.3.0",
+  "description": "GPU Monte Carlo x-ray transport simulator",
+  "dependencies": [
+    "zlib"
+  ]
+}

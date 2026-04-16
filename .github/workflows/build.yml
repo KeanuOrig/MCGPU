@@ -1,0 +1,133 @@
+name: build
+
+on:
+  push:
+    branches: [master, windows-native]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write   # release job needs this to publish assets
+
+jobs:
+  linux:
+    name: Linux / CUDA ${{ matrix.cuda }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cuda: ["12.4.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zlib
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.15
+        with:
+          cuda: ${{ matrix.cuda }}
+          method: network
+          sub-packages: '["nvcc", "cudart"]'
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMCGPU_CUDA_ARCHITECTURES=86
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage artifact
+        run: |
+          mkdir -p artifact
+          cp build/MC-GPU_v1.3 artifact/
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: MC-GPU_v1.3-linux
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Windows / CUDA ${{ matrix.cuda }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        cuda: ["12.4.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.15
+        with:
+          cuda: ${{ matrix.cuda }}
+          method: network
+          sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+      - name: Install vcpkg + zlib
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg C:/vcpkg
+          C:/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Configure
+        shell: cmd
+        run: >
+          cmake -S . -B build
+          -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+          -DMCGPU_CUDA_ARCHITECTURES=86
+
+      - name: Build
+        shell: cmd
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage artifact
+        shell: cmd
+        run: |
+          mkdir artifact
+          copy build\Release\MC-GPU_v1.3.exe artifact\
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: MC-GPU_v1.3-windows
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: [linux, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MC-GPU_v1.3-linux
+          path: dist/linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MC-GPU_v1.3-windows
+          path: dist/windows
+
+      - name: Package archives
+        run: |
+          cd dist
+          zip -j MC-GPU_v1.3-linux.zip linux/*
+          zip -j MC-GPU_v1.3-windows.zip windows/*
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/MC-GPU_v1.3-linux.zip
+            dist/MC-GPU_v1.3-windows.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
