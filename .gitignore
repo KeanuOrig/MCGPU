@@ -1,0 +1,36 @@
+# Build outputs
+build/
+out/
+cmake-build-*/
+*.exe
+*.obj
+*.o
+*.a
+*.lib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+
+# vcpkg
+vcpkg_installed/
+
+# Editors / IDEs
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local test artefacts (not part of the project)
+test_phantom.vox
+60keV_mono.spc
+mcgpu_test_*.dat*
+output_*.dat*
+docker/
